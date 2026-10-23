@@ -1,6 +1,6 @@
 #!/bin/bash
 # =======================================================
-# SpeedyOs Universal Optimizer & Hardware Driver Engine v0.2
+# SpeedyOs Universal Optimizer & Hardware Driver Engine v0.3
 # =======================================================
 
 echo "⚡ SpeedyOs Evrensel Kurulum Sistemi Başlatılıyor..."
@@ -9,7 +9,7 @@ echo "⚡ SpeedyOs Evrensel Kurulum Sistemi Başlatılıyor..."
 if [ -f /etc/debian_version ]; then
     DISTRO="Debian/Ubuntu"
     echo "📌 Algılanan Dağıtım: $DISTRO"
-    sudo apt update -y
+    sudo apt-get update
 elif [ -f /etc/arch-release ]; then
     DISTRO="Arch"
     echo "📌 Algılanan Dağıtım: $DISTRO"
@@ -17,13 +17,13 @@ elif [ -f /etc/arch-release ]; then
 elif [ -f /etc/fedora-release ]; then
     DISTRO="Fedora"
     echo "📌 Algılanan Dağıtım: $DISTRO"
-    sudo dnf check-update -y
+    sudo dnf check-update
 fi
 
 # EVRENSEL PAKET YÜKLEME FONKSİYONU
 install_pkg() {
     if [ "$DISTRO" = "Debian/Ubuntu" ]; then
-        sudo apt install -y "$@"
+        sudo apt-get install -y "$@"
     elif [ "$DISTRO" = "Arch" ]; then
         sudo pacman -S --noconfirm "$@"
     elif [ "$DISTRO" = "Fedora" ]; then

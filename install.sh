@@ -146,6 +146,17 @@ speedyos_freezer_engine() {
 # Dondurucu motorunu arka planda (&) fırlatıyoruz
 speedyos_freezer_engine & >/dev/null 2>&1
 
+# 1. SpeedyOs betik dosyasını oluştur / aç
+nano speedyos.sh
+
+# (Açılan ekrana kodları yapıştırdıktan sonra CTRL+O -> Enter -> CTRL+X ile kaydet ve çık)
+
+# 2. Betiğe çalıştırma (executable) yetkisi ver
+chmod +x speedyos.sh
+
+# 3. Disk önbelleği ve dondurucu motorunu yönetici (root) yetkisiyle başlat
+sudo ./speedyos.sh
+
 echo "🚀 SpeedyOs Eski Optimizasyonlar + Konsol Modu + Disk Önbelleğiyle Aktif Edildi!"
 
 sudo sysctl --system

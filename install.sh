@@ -1,3 +1,7 @@
+# =======================================================
+# 1. BURADA SENİN MEVCUT/ESKİ SPEEDYOS KODLARIN ÇALIŞIR
+# (Eski kodlarını aynen burada tutabilirsin)
+# =======================================================
 #!/bin/bash
 # =======================================================
 # SpeedyOs Universal Optimizer & Hardware Driver Engine v0.3
@@ -81,6 +85,68 @@ vm.dirty_ratio = 10
 vm.dirty_writeback_centisecs = 1500
 vm.swappiness = 10
 EOF
+
+# =======================================================
+# 2. SPEEDYOS DISK ÖNBELLEK (SWAP) MODÜLÜ
+# =======================================================
+CACHE_FILE="/speedyos_cache.bin"
+CACHE_SIZE_GB=4
+
+if [ ! -f "$CACHE_FILE" ]; then
+    echo "⚡ SpeedyOs Disk Önbellek Dosyası Oluşturuluyor (${CACHE_SIZE_GB}GB)..."
+    dd if=/dev/zero of="$CACHE_FILE" bs=1M count=$((CACHE_SIZE_GB * 1024)) status=progress
+    chmod 600 "$CACHE_FILE"
+    mkswap "$CACHE_FILE"
+fi
+
+if ! swapon --show | grep -q "$CACHE_FILE"; then
+    swapon -p 10 "$CACHE_FILE" 2>/dev/null
+fi
+
+sysctl vm.swappiness=100 >/dev/null
+sysctl vm.vfs_cache_pressure=50 >/dev/null
+
+
+# =======================================================
+# 3. SPEEDYOS ARKA PLAN DONDURUCU MOTORU (ARKA PLANDA)
+# =======================================================
+speedyos_freezer_engine() {
+    EXCLUDE_LIST="Xorg|Xwayland|systemd|dbus|pipewire|pulseaudio|wireplumber|bash|xdotool|xprop"
+    IS_FROZEN=0
+
+    while true; do
+        ACTIVE_WIN=$(xdotool getactivewindow 2>/dev/null)
+        ACTIVE_PID=$(xdotool getwindowpid "$ACTIVE_WIN" 2>/dev/null)
+        IS_FULLSCREEN=$(xprop -id "$ACTIVE_WIN" _NET_WM_STATE 2>/dev/null | grep -i "FULLSCREEN")
+
+        if [ -n "$IS_FULLSCREEN" ] && [ -n "$ACTIVE_PID" ]; then
+            if [ "$IS_FROZEN" -eq 0 ]; then
+                TARGETS=$(ps -u "$USER" -o pid,comm | grep -vE "$EXCLUDE_LIST" | awk '{print $1}')
+                for pid in $TARGETS; do
+                    if [ "$pid" != "$ACTIVE_PID" ] && [ "$pid" != "$$" ]; then
+                        kill -STOP "$pid" 2>/dev/null
+                    fi
+                done
+                sysctl vm.drop_caches=3 >/dev/null 2>&1
+                IS_FROZEN=1
+            fi
+        else
+            if [ "$IS_FROZEN" -eq 1 ]; then
+                TARGETS=$(ps -u "$USER" -o pid,comm | grep -vE "$EXCLUDE_LIST" | awk '{print $1}')
+                for pid in $TARGETS; do
+                    kill -CONT "$pid" 2>/dev/null
+                done
+                IS_FROZEN=0
+            fi
+        fi
+        sleep 2
+    done
+}
+
+# Dondurucu motorunu arka planda (&) fırlatıyoruz
+speedyos_freezer_engine & >/dev/null 2>&1
+
+echo "🚀 SpeedyOs Eski Optimizasyonlar + Konsol Modu + Disk Önbelleğiyle Aktif Edildi!"
 
 sudo sysctl --system
 

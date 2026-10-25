@@ -162,3 +162,46 @@ echo "🚀 SpeedyOs Eski Optimizasyonlar + Konsol Modu + Disk Önbelleğiyle Akt
 sudo sysctl --system
 
 echo "🎉 SpeedyOs Başarıyla Kuruldu! Sisteminiz Ateş Ediyor."
+
+# =====================================================================
+#  SPEEDYOS - EK PERFORMANS & SİSTEM OPTİMİZASYON BLOĞU
+# =====================================================================
+
+echo -e "\n[+] SpeedyOS Ek Performans Ayarları Uygulanıyor..."
+
+# 1. RAM ve Ağ Çekirdek Ayarları (Sysctl Yapılandırması)
+cat << 'EOF' | sudo tee /etc/sysctl.d/99-speedyos.conf > /dev/null
+# RAM optimizasyonu (Diske yazmayı geciktir, RAM'de tut)
+vm.swappiness=10
+vm.vfs_cache_pressure=50
+
+# Google TCP BBR Ağ / Ping Düşürme Algoritması
+net.core.default_qdisc=fq
+net.ipv4.tcp_congestion_control=bbr
+EOF
+
+# Ayarları sisteme anında uygula
+sudo sysctl --system > /dev/null 2>&1
+
+# 2. İşlemci Performans Modu (Tüm Çekirdekleri Uyar)
+for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    if [ -f "$gov" ]; then
+        echo "performance" | sudo tee "$gov" > /dev/null
+    fi
+done
+
+# 3. SSD ve NVMe Disk Okuma Zamanlayıcısı (I/O Scheduler)
+for sched in /sys/block/*/queue/scheduler; do
+    if [ -f "$sched" ]; then
+        if grep -q "bfq" "$sched"; then
+            echo "bfq" | sudo tee "$sched" > /dev/null
+        elif grep -q "mq-deadline" "$sched"; then
+            echo "mq-deadline" | sudo tee "$sched" > /dev/null
+        fi
+    fi
+done
+
+# 4. Hızlı Kapanış (Takılı Kalan Servislerin Kapanma Bekleme Süresini Düşür)
+sudo sed -i 's/#DefaultTimeoutStopSec=90s/DefaultTimeoutStopSec=10s/' /etc/systemd/system.conf
+
+echo "[✓] SpeedyOS ek optimizasyonları başarıyla uygulandı!"

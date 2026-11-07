@@ -30,6 +30,7 @@ if [ "$HDD_TYPE" -eq 2 ]; then
     done
     
     cat << 'EOF' | sudo tee /etc/sysctl.d/98-speedyos-hdd.conf > /dev/null
+# Masaüstü HDD RAM Önbellek Yazma Limitleri
 vm.dirty_background_ratio = 8
 vm.dirty_ratio = 16
 vm.dirty_writeback_centisecs = 1000
@@ -39,11 +40,12 @@ else
     echo -e "\n⚙️ Laptop HDD Profili Yapılandırılıyor (100 MB/s)..."
     
     # Read-Ahead (Önden Okuma): 1024 KB (1MB - Darboğaz Önleyici)
-    for dev in /sys/block/sd*/queue/read_ahead_kb; me
+    for dev in /sys/block/sd*/queue/read_ahead_kb; do
         [ -f "$dev" ] && echo 1024 | sudo tee "$dev" > /dev/null
     done
     
     cat << 'EOF' | sudo tee /etc/sysctl.d/98-speedyos-hdd.conf > /dev/null
+# Laptop HDD RAM Önbellek Yazma Limitleri
 vm.dirty_background_ratio = 3
 vm.dirty_ratio = 8
 vm.dirty_writeback_centisecs = 500

@@ -205,3 +205,103 @@ done
 sudo sed -i 's/#DefaultTimeoutStopSec=90s/DefaultTimeoutStopSec=10s/' /etc/systemd/system.conf
 
 echo "[✓] SpeedyOS ek optimizasyonları başarıyla uygulandı!"
+
+# =====================================================================
+# SPEEDYOS ELOY v0.5 - EK DONANIM & SEGMENT MODÜLÜ
+# (Bu bloğu mevcut install.sh dosyanızın EN ALTINA yapıştırabilirsiniz)
+# =====================================================================
+
+echo -e "\n======================================================="
+echo " 🚀 SpeedyOS ELOY Donanım Sihirbazı & Ek Optimizasyonlar"
+echo "======================================================="
+
+# 1. SEGMENT VE TÜR SEÇİMİ
+echo -e "\n🖥️  Bilgisayarınızın Donanım Segmentini Seçin:"
+echo "1) Eski / Düşük Donanımlı Bilgisayar (RAM < 4GB / HDD)"
+echo "2) Orta Segment Bilgisayar"
+echo "3) Oyuncu / Yüksek Performanslı PC (Örn: Excalibur G870)"
+read -p "Seçiminiz (1/2/3): " SEGMENT_CHOICE
+
+echo -e "\n💻 Bilgisayarınızın Form Faktörünü (Türünü) Seçin:"
+echo "1) Masaüstü PC"
+echo "2) Laptop / Dizüstü"
+echo "3) Dokunmatik Ekranlı (2'si 1 arada / Tablet PC)"
+read -p "Seçiminiz (1/2/3): " TYPE_CHOICE
+
+# 2. SEGMENTE GÖRE DEĞİŞKENLERİN ATANMASI
+case $SEGMENT_CHOICE in
+    1)
+        echo -e "\n[+] Düşük Donanım Modu Seçildi."
+        BLUR_STRENGTH=3
+        ZRAM_SIZE="2G"
+        ;;
+    2)
+        echo -e "\n[+] Orta Segment Modu Seçildi."
+        BLUR_STRENGTH=6
+        ZRAM_SIZE="4G"
+        ;;
+    3)
+        echo -e "\n[+] Oyuncu / Yüksek Performans Modu Seçildi."
+        BLUR_STRENGTH=10
+        ZRAM_SIZE="6G"
+        ;;
+    *)
+        BLUR_STRENGTH=6
+        ZRAM_SIZE="4G"
+        ;;
+esac
+
+# 3. ESKİ PC HDD I/O OPTİMİZASYON MODÜLÜ (100 MB/s vs 200 MB/s)
+if [ "$SEGMENT_CHOICE" -eq 1 ]; then
+    echo -e "\n[+] Eski Donanım HDD I/O Optimizasyonu Uygulanıyor..."
+    
+    if [ "$TYPE_CHOICE" -eq 1 ]; then
+        echo "⚙️ Masaüstü HDD Profili Yapılandırılıyor (200 MB/s HEDEFİ)..."
+        for dev in /sys/block/sd*/queue/read_ahead_kb; do
+            [ -f "$dev" ] && echo 2048 | sudo tee "$dev" > /dev/null
+        done
+        
+        cat << 'EOF' | sudo tee /etc/sysctl.d/98-speedyos-hdd.conf > /dev/null
+vm.dirty_background_ratio = 8
+vm.dirty_ratio = 16
+vm.dirty_writeback_centisecs = 1000
+EOF
+    else
+        echo "⚙️ Laptop HDD Profili Yapılandırılıyor (100 MB/s HEDEFİ)..."
+        for dev in /sys/block/sd*/queue/read_ahead_kb; do
+            [ -f "$dev" ] && echo 1024 | sudo tee "$dev" > /dev/null
+        done
+        
+        cat << 'EOF' | sudo tee /etc/sysctl.d/98-speedyos-hdd.conf > /dev/null
+vm.dirty_background_ratio = 3
+vm.dirty_ratio = 8
+vm.dirty_writeback_centisecs = 500
+EOF
+    fi
+fi
+
+# 4. DOKUNMATİK SÜRÜCÜ DOKUNUŞU (EĞER DOKUNMATİK SEÇİLDİYSE)
+if [ "$TYPE_CHOICE" -eq 3 ]; then
+    echo -e "\n[+] Dokunmatik Ekran Sürücüleri ve Jest Motoru Yükleniyor..."
+    if command -v apt-get &>/dev/null; then
+        sudo apt-get install -y touchegg xserver-xorg-input-wacom xserver-xorg-input-libinput 2>/dev/null || true
+    elif command -v pacman &>/dev/null; then
+        sudo pacman -S --noconfirm touchegg 2>/dev/null || true
+    fi
+    sudo systemctl enable --now touchegg 2>/dev/null || true
+fi
+
+# 5. zRAM SIKIŞTIRMA VE AYARLARIN UYGULANMASI
+if ! grep -q "zram" /proc/swaps 2>/dev/null; then
+    echo -e "\n[+] zRAM ZSTD Sıkıştırma Motoru Aktif Ediliyor ($ZRAM_SIZE)..."
+    sudo modprobe zram num_devices=1 2>/dev/null || true
+    if [ -f /sys/block/zram0/comp_algorithm ]; then
+        echo zstd | sudo tee /sys/block/zram0/comp_algorithm > /dev/null
+        echo "$ZRAM_SIZE" | sudo tee /sys/block/zram0/disksize > /dev/null
+        sudo mkswap /dev/zram0 > /dev/null 2>&1 || true
+        sudo swapon -p 32767 /dev/zram0 > /dev/null 2>&1 || true
+    fi
+fi
+
+sudo sysctl --system > /dev/null 2>&1
+echo -e "\n[✓] SpeedyOS ELOY Ek Donanım Modülü Başarıyla Devreye Alındı!"

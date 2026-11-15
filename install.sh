@@ -50,7 +50,7 @@ install_pkg() {
 
 # 3. GÜÇ YÖNETİMİ VE EKRAN KARTI SÜRÜCÜLERİ
 echo "🔋 Otomatik Güç ve GPU Sürücüleri Yapılandırılıyor..."
-install_pkg auto-cpufreq
+install_pkg auto-cpufreq xdotool xorg-xprop
 sudo auto-cpufreq --install 2>/dev/null || true
 
 GPU_INFO=$(lspci 2>/dev/null | grep -iE 'vga|3d')
@@ -66,44 +66,39 @@ elif echo "$GPU_INFO" | grep -iq "AMD"; then
     [ "$DISTRO" = "Fedora" ] && install_pkg mesa-vulkan-drivers
 fi
 
-# 4. SPEEDYOS ARAYÜZ TEMASI, YÜZEN GÖREV ÇUBUĞU VE HIZLI ANİMASYONLAR
-echo "🎨 Şık Arayüz Teması, Yüzen Görev Çubuğu ve Hızlı Animasyonlar Kuruluyor..."
-install_pkg picom papirus-icon-theme arc-gtk-theme xdotool xorg-xprop
-
-mkdir -p ~/.config/picom/
-cat << EOF > ~/.config/picom/picom.conf
-# SpeedyOS Evrensel Linux Arayüzü - Görsel Motor
-backend = "glx";
-vsync = true;
-
-# Hızlı Pencere Animasyonları
-fading = true;
-fade-in-step = 0.08;
-fade-out-step = 0.08;
-fade-delta = 3;
-
-# Cam Bulanıklığı ve Yüzen Pencere Köşeleri
-blur-background = true;
-blur-method = "dual_kawase";
-blur-strength = ${BLUR_STRENGTH};
-corner-radius = 12;
-rounded-corners-exclude = [
-  "window_type = 'desktop'"
-];
-EOF
-
+# 4. YÜZEN GÖREV ÇUBUĞU VE HIZLI ANİMASYONLAR (SİMGELERE DOKUNMAZ)
+echo "🎨 Yüzen Görev Çubuğu ve Hızlı Animasyonlar Aktif Ediliyor..."
 if pgrep -x "plasmashell" > /dev/null; then
     echo "💠 KDE Plasma Algılandı: Yüzen Panel ve Hızlı Animasyonlar Uygulanıyor..."
     KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
     if [ -n "$KWRITE" ]; then
         $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
-        $KWRITE --file kdeglobals --group Icons --key Theme "Papirus-Dark"
-        sed -i 's/floating=0/floating=1/g' ~/.config/plasma-org.kde.plasma.desktop-appletsrc 2>/dev/null || true
     fi
+    APPLET_RC="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+    if [ -f "$APPLET_RC" ]; then
+        sed -i '/^floating=/d' "$APPLET_RC"
+        sed -i 's/^plugin=org.kde.panel/plugin=org.kde.panel\nfloating=1/' "$APPLET_RC"
+    fi
+    # KWin animasyonlarını ve Plasma kabuğunu anında yenile
+    qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
+    systemctl --user restart plasma-plasmashell.service 2>/dev/null || (nohup plasmashell --replace >/dev/null 2>&1 &)
 else
-    echo "🪟 Dock Motoru (Plank) Yüzen Görev Çubuğu Olarak Kuruluyor..."
-    install_pkg plank
-    mkdir -p ~/.config/autostart
+    echo "🪟 Hafif Masaüstü Algılandı: Plank Yüzen Çubuk ve Picom Başlatılıyor..."
+    install_pkg picom plank
+    mkdir -p ~/.config/picom/ ~/.config/autostart/
+    cat << EOF > ~/.config/picom/picom.conf
+backend = "glx";
+vsync = true;
+fading = true;
+fade-in-step = 0.08;
+fade-out-step = 0.08;
+fade-delta = 3;
+blur-background = true;
+blur-method = "dual_kawase";
+blur-strength = ${BLUR_STRENGTH};
+corner-radius = 12;
+rounded-corners-exclude = [ "window_type = 'desktop'" ];
+EOF
     cat << 'EOF' > ~/.config/autostart/speedyos-dock.desktop
 [Desktop Entry]
 Type=Application
@@ -113,12 +108,98 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=SpeedyOS Yüzen Görev Çubuğu
 EOF
-    gsettings set org.gnome.desktop.interface gtk-theme "Arc-Dark" 2>/dev/null || true
-    gsettings set org.gnome.desktop.interface icon-theme "Papirus-Dark" 2>/dev/null || true
-    gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null || true
+    pkill -x picom 2>/dev/null || true
+    pkill -x plank 2>/dev/null || true
+    nohup picom -b >/dev/null 2>&1 &
     nohup plank >/dev/null 2>&1 &
 fi
 
 # 5. RAM, AĞ (TCP BBR), zRAM, KALICI HDD VE DISK ÖNBELLEK MODÜLÜ
 echo "⚡ Çekirdek, zRAM, Kalıcı HDD ve Ağ Hızlandırma Katmanı Uygulanıyor..."
-cat << 'EOF' | sudo tee /etc/sysctl.d/99-speedyos.conf
+cat << 'EOF' | sudo tee /etc/sysctl.d/99-speedyos.conf > /dev/null
+vm.dirty_background_ratio = 5
+vm.dirty_ratio = 10
+vm.dirty_writeback_centisecs = 1500
+vm.swappiness = 10
+vm.vfs_cache_pressure = 50
+net.core.default_qdisc = fq
+net.ipv4.tcp_congestion_control = bbr
+EOF
+
+if [ "$SEGMENT_CHOICE" -eq 1 ]; then
+    READ_AHEAD=$([ "$TYPE_CHOICE" -eq 1 ] && echo 2048 || echo 1024)
+    cat << EOF | sudo tee /etc/udev/rules.d/60-speedyos-hdd.rules > /dev/null
+ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/read_ahead_kb}="$READ_AHEAD", ATTR{queue/scheduler}="bfq"
+EOF
+    sudo udevadm control --reload-rules && sudo udevadm trigger
+fi
+
+if [ "$TYPE_CHOICE" -eq 3 ]; then
+    install_pkg touchegg xserver-xorg-input-wacom xserver-xorg-input-libinput
+    sudo systemctl enable --now touchegg 2>/dev/null || true
+fi
+
+if ! grep -q "zram" /proc/swaps 2>/dev/null; then
+    sudo modprobe zram num_devices=1 2>/dev/null || true
+    if [ -f /sys/block/zram0/comp_algorithm ]; then
+        echo zstd | sudo tee /sys/block/zram0/comp_algorithm > /dev/null
+        echo "$ZRAM_SIZE" | sudo tee /sys/block/zram0/disksize > /dev/null
+        sudo mkswap /dev/zram0 > /dev/null 2>&1 || true
+        sudo swapon -p 32767 /dev/zram0 > /dev/null 2>&1 || true
+    fi
+fi
+
+CACHE_FILE="/speedyos_cache.bin"
+if [ ! -f "$CACHE_FILE" ]; then
+    sudo dd if=/dev/zero of="$CACHE_FILE" bs=1M count=4096 status=progress
+    sudo chmod 600 "$CACHE_FILE"
+    sudo mkswap "$CACHE_FILE"
+fi
+swapon --show | grep -q "$CACHE_FILE" || sudo swapon -p 10 "$CACHE_FILE" 2>/dev/null
+
+for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
+    [ -f "$gov" ] && echo "performance" | sudo tee "$gov" > /dev/null
+done
+
+for sched in /sys/block/*/queue/scheduler; do
+    if [ -f "$sched" ]; then
+        grep -q "bfq" "$sched" && echo "bfq" | sudo tee "$sched" > /dev/null || \
+        (grep -q "mq-deadline" "$sched" && echo "mq-deadline" | sudo tee "$sched" > /dev/null)
+    fi
+done
+
+if [ -f /etc/systemd/system.conf ]; then
+    sudo sed -i 's/#DefaultTimeoutStopSec=90s/DefaultTimeoutStopSec=10s/' /etc/systemd/system.conf
+fi
+
+sudo sysctl --system > /dev/null 2>&1
+
+# 6. ARKA PLAN DONDURUCU MOTORU
+speedyos_freezer_engine() {
+    EXCLUDE_LIST="Xorg|Xwayland|systemd|dbus|pipewire|pulseaudio|wireplumber|bash|xdotool|xprop|plank|plasmashell|kwin|picom"
+    IS_FROZEN=0
+    while true; do
+        ACTIVE_WIN=$(xdotool getactivewindow 2>/dev/null)
+        ACTIVE_PID=$(xdotool getwindowpid "$ACTIVE_WIN" 2>/dev/null)
+        IS_FULLSCREEN=$(xprop -id "$ACTIVE_WIN" _NET_WM_STATE 2>/dev/null | grep -i "FULLSCREEN")
+
+        if [ -n "$IS_FULLSCREEN" ] && [ -n "$ACTIVE_PID" ]; then
+            if [ "$IS_FROZEN" -eq 0 ]; then
+                for pid in $(ps -u "$USER" -o pid,comm | grep -vE "$EXCLUDE_LIST" | awk '{print $1}'); do
+                    [ "$pid" != "$ACTIVE_PID" ] && [ "$pid" != "$$" ] && kill -STOP "$pid" 2>/dev/null
+                done
+                sudo sysctl vm.drop_caches=3 >/dev/null 2>&1
+                IS_FROZEN=1
+            fi
+        elif [ "$IS_FROZEN" -eq 1 ]; then
+            for pid in $(ps -u "$USER" -o pid,comm | grep -vE "$EXCLUDE_LIST" | awk '{print $1}'); do
+                kill -CONT "$pid" 2>/dev/null
+            done
+            IS_FROZEN=0
+        fi
+        sleep 2
+    done
+}
+
+speedyos_freezer_engine & >/dev/null 2>&1
+echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Başarıyla Kuruldu!"

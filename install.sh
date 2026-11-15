@@ -1,6 +1,6 @@
 #!/bin/bash
 # =======================================================
-# SpeedyOS - Evrensel Linux Arayüzü (Tam Kabuk Sürümü)
+# SpeedyOS - Evrensel Linux Arayüzü & Güvenlik Paketi
 # =======================================================
 
 echo "⚡ SpeedyOS - Evrensel Linux Arayüzü Başlatılıyor..."
@@ -25,7 +25,7 @@ case $SEGMENT_CHOICE in
     *) BLUR_STRENGTH=6; ZRAM_SIZE="4G"; ANIM_SPEED="0.35" ;;
 esac
 
-# 2. DAĞITIM TESPİTİ VE DEPO GÜNCELLEMESİ
+# 2. DAĞITIM TESPİTİ VE TEKİL PAKET YÜKLEME MOTORU
 if [ -f /etc/debian_version ]; then
     DISTRO="Debian/Ubuntu"
     sudo apt-get update
@@ -39,13 +39,15 @@ fi
 echo "📌 Algılanan Taban: $DISTRO"
 
 install_pkg() {
-    if [ "$DISTRO" = "Debian/Ubuntu" ]; then
-        sudo apt-get install -y "$@" 2>/dev/null || true
-    elif [ "$DISTRO" = "Arch" ]; then
-        sudo pacman -S --noconfirm --needed "$@" 2>/dev/null || true
-    elif [ "$DISTRO" = "Fedora" ]; then
-        sudo dnf install -y "$@" 2>/dev/null || true
-    fi
+    for pkg in "$@"; do
+        if [ "$DISTRO" = "Debian/Ubuntu" ]; then
+            sudo apt-get install -y "$pkg" 2>/dev/null || true
+        elif [ "$DISTRO" = "Arch" ]; then
+            sudo pacman -S --noconfirm --needed "$pkg" 2>/dev/null || true
+        elif [ "$DISTRO" = "Fedora" ]; then
+            sudo dnf install -y "$pkg" 2>/dev/null || true
+        fi
+    done
 }
 
 # 3. GÜÇ YÖNETİMİ VE EKRAN KARTI SÜRÜCÜLERİ
@@ -69,7 +71,6 @@ fi
 # 4. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU VE TEMASI
 echo "🎨 SpeedyOS Özel Arayüz Kabuğu İnşa Ediliyor..."
 
-# Özel SpeedyOS Vektörel Duvar Kağıdı Oluştur
 mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes"
 WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
 cat << 'EOF' > "$WALLPAPER_PATH"
@@ -92,7 +93,6 @@ cat << 'EOF' > "$WALLPAPER_PATH"
 </svg>
 EOF
 
-# Özel SpeedyOS Obsidyen-Kızıl-Altın Renk Şeması
 cat << 'EOF' > "$HOME/.local/share/color-schemes/SpeedyOS.colors"
 [General]
 ColorScheme=SpeedyOS
@@ -135,7 +135,6 @@ if pgrep -x "plasmashell" > /dev/null; then
     plasma-apply-colorscheme SpeedyOS 2>/dev/null || true
     plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
 
-    # Eski paneli kaldırıp Üst Durum Çubuğu + Alt Yüzen Dock oluştur
     PLASMA_SCRIPT='
     panels().forEach(p => p.remove());
 
@@ -254,7 +253,54 @@ fi
 
 sudo sysctl --system > /dev/null 2>&1
 
-# 6. ARKA PLAN DONDURUCU MOTORU
+# 6. SPEEDYWALL (0 MB RAM GÜVENLİK DUVARI) & SPEEDYSECURE (HAFİF ANTİVİRÜS)
+echo "🛡️ SpeedyWall ve SpeedySecure Güvenlik Katmanı Kuruluyor..."
+install_pkg ufw clamav clamav-update rkhunter
+
+# Mevcut güvenlik duvarını silmeden sadece çakışmayı önlemek için pasife al
+sudo systemctl disable --now firewalld 2>/dev/null || true
+# Arka planda 1.5 GB RAM tüketen ağır ClamAV servisini kapat (Yalnızca taramada çalışsın)
+sudo systemctl disable --now clamav-daemon clamav-freshclam clamd@scan 2>/dev/null || true
+
+sudo ufw default deny incoming >/dev/null 2>&1 || true
+sudo ufw default allow outgoing >/dev/null 2>&1 || true
+sudo ufw --force enable >/dev/null 2>&1 || true
+
+cat << 'EOF' | sudo tee /usr/local/bin/speedywall > /dev/null
+#!/bin/bash
+case "$1" in
+    aktif)  sudo ufw --force enable && echo "🛡️ SpeedyWall: Kalkan Aktif (0 MB RAM)" ;;
+    kapat)  sudo ufw disable && echo "⚠️ SpeedyWall: Devre Dışı" ;;
+    durum)  sudo ufw status verbose ;;
+    *)      echo "Kullanım: speedywall [aktif | kapat | durum]" ;;
+esac
+EOF
+sudo chmod +x /usr/local/bin/speedywall
+
+cat << 'EOF' | sudo tee /usr/local/bin/speedysecure > /dev/null
+#!/bin/bash
+case "$1" in
+    tara)
+        TARGET="${2:-$HOME/Downloads}"
+        echo "🔍 SpeedySecure Taraması Başlatılıyor: $TARGET"
+        clamscan -r --bell -i "$TARGET"
+        ;;
+    guncelle)
+        echo "🔄 Virüs Veritabanı Güncelleniyor..."
+        sudo freshclam
+        ;;
+    sistem)
+        echo "🧬 Çekirdek ve Rootkit Denetimi Yapılıyor..."
+        sudo rkhunter --check --sk
+        ;;
+    *)
+        echo "Kullanım: speedysecure [tara <klasor> | guncelle | sistem]"
+        ;;
+esac
+EOF
+sudo chmod +x /usr/local/bin/speedysecure
+
+# 7. ARKA PLAN DONDURUCU MOTORU
 speedyos_freezer_engine() {
     EXCLUDE_LIST="Xorg|Xwayland|systemd|dbus|pipewire|pulseaudio|wireplumber|bash|xdotool|xprop|plank|plasmashell|kwin|picom"
     IS_FROZEN=0
@@ -282,52 +328,4 @@ speedyos_freezer_engine() {
 }
 
 speedyos_freezer_engine & >/dev/null 2>&1
-
-# 7. SPEEDYWALL (0 MB RAM GÜVENLİK DUVARI) & SPEEDYSECURE (HAFİF ANTİVİRÜS)
-echo "🛡️ SpeedyWall ve SpeedySecure Güvenlik Katmanı Kuruluyor..."
-install_pkg ufw clamav rkhunter
-
-# Arka planda 1.5 GB RAM yiyen ağır ClamAV servisini kapat (Sadece talep anında çalışsın)
-sudo systemctl disable --now clamav-daemon 2>/dev/null || true
-
-# SpeedyWall: Varsayılan olarak dışarıdan gelen tüm bağlantıları engelle, çıkışı serbest bırak
-sudo ufw default deny incoming >/dev/null 2>&1 || true
-sudo ufw default allow outgoing >/dev/null 2>&1 || true
-sudo ufw --force enable >/dev/null 2>&1 || true
-
-# SpeedyWall Terminal Komutu Oluştur
-cat << 'EOF' | sudo tee /usr/local/bin/speedywall > /dev/null
-#!/bin/bash
-case "$1" in
-    aktif)  sudo ufw --force enable && echo "🛡️ SpeedyWall: Kalkan Aktif (0 MB RAM)" ;;
-    kapat)  sudo ufw disable && echo "⚠️ SpeedyWall: Devre Dışı" ;;
-    durum)  sudo ufw status verbose ;;
-    *)      echo "Kullanım: speedywall [aktif | kapat | durum]" ;;
-esac
-EOF
-sudo chmod +x /usr/local/bin/speedywall
-
-# SpeedySecure Terminal Komutu Oluştur
-cat << 'EOF' | sudo tee /usr/local/bin/speedysecure > /dev/null
-#!/bin/bash
-case "$1" in
-    tara)
-        TARGET="${2:-$HOME/Downloads}"
-        echo "🔍 SpeedySecure Taraması Başlatılıyor: $TARGET"
-        clamscan -r --bell -i "$TARGET"
-        ;;
-    guncelle)
-        echo "🔄 Virüs Veritabanı Güncelleniyor..."
-        sudo freshclam
-        ;;
-    sistem)
-        echo "🧬 Çekirdek ve Rootkit Denetimi Yapılıyor..."
-        sudo rkhunter --check --sk
-        ;;
-    *)
-        echo "Kullanım: speedysecure [tara <klasor> | guncelle | sistem]"
-        ;;
-esac
-EOF
-sudo chmod +x /usr/local/bin/speedysecure
-echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Tam Kabuk Modunda Kuruldu!"
+echo "🎉 SpeedyOS - Evrensel Linux Arayüzü + SpeedyWall & SpeedySecure Kuruldu!"

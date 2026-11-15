@@ -19,10 +19,10 @@ echo "3) Dokunmatik Ekranlı (2'si 1 arada / Tablet PC)"
 read -p "Seçiminiz (1/2/3): " TYPE_CHOICE
 
 case $SEGMENT_CHOICE in
-    1) BLUR_STRENGTH=3; ZRAM_SIZE="2G"; ANIM_SPEED="0.25" ;;
-    2) BLUR_STRENGTH=6; ZRAM_SIZE="4G"; ANIM_SPEED="0.35" ;;
-    3) BLUR_STRENGTH=10; ZRAM_SIZE="6G"; ANIM_SPEED="0.35" ;;
-    *) BLUR_STRENGTH=6; ZRAM_SIZE="4G"; ANIM_SPEED="0.35" ;;
+    1) BLUR_STRENGTH=3; BLUR_ENABLED=false; ZRAM_SIZE="2G"; ANIM_SPEED="0.25" ;;
+    2) BLUR_STRENGTH=6; BLUR_ENABLED=true; ZRAM_SIZE="4G"; ANIM_SPEED="0.35" ;;
+    3) BLUR_STRENGTH=10; BLUR_ENABLED=true; ZRAM_SIZE="6G"; ANIM_SPEED="0.35" ;;
+    *) BLUR_STRENGTH=6; BLUR_ENABLED=true; ZRAM_SIZE="4G"; ANIM_SPEED="0.35" ;;
 esac
 
 # 2. DAĞITIM TESPİTİ VE TEKİL PAKET YÜKLEME MOTORU
@@ -127,7 +127,7 @@ if pgrep -x "plasmashell" > /dev/null; then
     KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
     if [ -n "$KWRITE" ]; then
         $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
-        $KWRITE --file kwinrc --group Plugins --key blurEnabled true
+        $KWRITE --file kwinrc --group Plugins --key blurEnabled "$BLUR_ENABLED"
         $KWRITE --file kwinrc --group Plugins --key slideEnabled true
         $KWRITE --file kwinrc --group Effect-blur --key BlurStrength "$BLUR_STRENGTH"
     fi
@@ -171,7 +171,7 @@ fading = true;
 fade-in-step = 0.08;
 fade-out-step = 0.08;
 fade-delta = 3;
-blur-background = true;
+blur-background = ${BLUR_ENABLED};
 blur-method = "dual_kawase";
 blur-strength = ${BLUR_STRENGTH};
 corner-radius = 14;
@@ -205,7 +205,11 @@ net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 EOF
 
+# Düşük Donanım Koruması: RAM Tasarrufu + Kalıcı HDD Optimizasyonu
 if [ "$SEGMENT_CHOICE" -eq 1 ]; then
+    echo "🧹 Düşük RAM Koruması: Dosya indeksleyici (Baloo) kapatılıyor..."
+    balooctl6 disable 2>/dev/null || balooctl disable 2>/dev/null || true
+
     READ_AHEAD=$([ "$TYPE_CHOICE" -eq 1 ] && echo 2048 || echo 1024)
     cat << EOF | sudo tee /etc/udev/rules.d/60-speedyos-hdd.rules > /dev/null
 ACTION=="add|change", KERNEL=="sd[a-z]", ATTR{queue/rotational}=="1", ATTR{queue/read_ahead_kb}="$READ_AHEAD", ATTR{queue/scheduler}="bfq"
@@ -233,6 +237,8 @@ if [ ! -f "$CACHE_FILE" ]; then
     sudo dd if=/dev/zero of="$CACHE_FILE" bs=1M count=4096 status=progress
     sudo chmod 600 "$CACHE_FILE"
     sudo mkswap "$CACHE_FILE"
+    # dd işleminin RAM'de biriktirdiği 4 GB geçici sayfa önbelleğini anında boşalt
+    sync && sudo sysctl -w vm.drop_caches=3 > /dev/null 2>&1
 fi
 swapon --show | grep -q "$CACHE_FILE" || sudo swapon -p 10 "$CACHE_FILE" 2>/dev/null
 
@@ -257,9 +263,7 @@ sudo sysctl --system > /dev/null 2>&1
 echo "🛡️ SpeedyWall ve SpeedySecure Güvenlik Katmanı Kuruluyor..."
 install_pkg ufw clamav clamav-update rkhunter
 
-# Mevcut güvenlik duvarını silmeden sadece çakışmayı önlemek için pasife al
 sudo systemctl disable --now firewalld 2>/dev/null || true
-# Arka planda 1.5 GB RAM tüketen ağır ClamAV servisini kapat (Yalnızca taramada çalışsın)
 sudo systemctl disable --now clamav-daemon clamav-freshclam clamd@scan 2>/dev/null || true
 
 sudo ufw default deny incoming >/dev/null 2>&1 || true

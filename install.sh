@@ -5,7 +5,7 @@
 
 echo "⚡ SpeedyOS - Evrensel Linux Arayüzü Başlatılıyor..."
 
-# 1. DONANIM SEGMENTİ VE FORM FAKTÖRÜ SİHİRBAZI (EN BAŞTA ÇALIŞIR)
+# 1. DONANIM SEGMENTİ VE FORM FAKTÖRÜ SİHİRBAZI
 echo -e "\n🖥️  Bilgisayarınızın Donanım Segmentini Seçin:"
 echo "1) Eski / Düşük Donanımlı Bilgisayar (RAM < 4GB / HDD)"
 echo "2) Orta Segment Bilgisayar"
@@ -53,7 +53,7 @@ echo "🔋 Otomatik Güç ve GPU Sürücüleri Yapılandırılıyor..."
 install_pkg auto-cpufreq
 sudo auto-cpufreq --install 2>/dev/null || true
 
-GPU_INFO=$(lspci | grep -iE 'vga|3d')
+GPU_INFO=$(lspci 2>/dev/null | grep -iE 'vga|3d')
 if echo "$GPU_INFO" | grep -iq "NVIDIA"; then
     echo "🚀 NVIDIA Ekran Kartı Algılandı!"
     [ "$DISTRO" = "Debian/Ubuntu" ] && install_pkg nvidia-driver nvidia-smi
@@ -70,14 +70,13 @@ fi
 echo "🎨 Şık Arayüz Teması, Yüzen Görev Çubuğu ve Hızlı Animasyonlar Kuruluyor..."
 install_pkg picom papirus-icon-theme arc-gtk-theme xdotool xorg-xprop
 
-# Picom: Yuvarlatılmış köşeler, cam bulanıklığı ve seri pencere geçişleri
 mkdir -p ~/.config/picom/
 cat << EOF > ~/.config/picom/picom.conf
 # SpeedyOS Evrensel Linux Arayüzü - Görsel Motor
 backend = "glx";
 vsync = true;
 
-# Hızlı Pencere Animasyonları (Solma/Açılma)
+# Hızlı Pencere Animasyonları
 fading = true;
 fade-in-step = 0.08;
 fade-out-step = 0.08;
@@ -93,20 +92,16 @@ rounded-corners-exclude = [
 ];
 EOF
 
-# Masaüstü Ortamına Göre Yüzen Görev Çubuğu ve Hızlı Animasyon Ayarı
 if pgrep -x "plasmashell" > /dev/null; then
     echo "💠 KDE Plasma Algılandı: Yüzen Panel ve Hızlı Animasyonlar Uygulanıyor..."
     KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
     if [ -n "$KWRITE" ]; then
-        # Animasyon hızını 3 kat hızlandır (0.35 çarpanı)
         $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
-        # Koyu tema ve Papirus ikon seti
         $KWRITE --file kdeglobals --group Icons --key Theme "Papirus-Dark"
-        # KDE panellerini yüzen (floating) moda al
         sed -i 's/floating=0/floating=1/g' ~/.config/plasma-org.kde.plasma.desktop-appletsrc 2>/dev/null || true
     fi
 else
-    echo "Dock Motoru (Plank) Yüzen Görev Çubuğu Olarak Kuruluyor..."
+    echo "🪟 Dock Motoru (Plank) Yüzen Görev Çubuğu Olarak Kuruluyor..."
     install_pkg plank
     mkdir -p ~/.config/autostart
     cat << 'EOF' > ~/.config/autostart/speedyos-dock.desktop
@@ -118,7 +113,6 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=SpeedyOS Yüzen Görev Çubuğu
 EOF
-    # GTK Uygulamaları için Koyu Tema ve Papirus İkonlar
     gsettings set org.gnome.desktop.interface gtk-theme "Arc-Dark" 2>/dev/null || true
     gsettings set org.gnome.desktop.interface icon-theme "Papirus-Dark" 2>/dev/null || true
     gsettings set org.gnome.desktop.interface enable-animations true 2>/dev/null || true
@@ -137,7 +131,6 @@ net.core.default_qdisc = fq
 net.ipv4.tcp_congestion_control = bbr
 EOF
 
-# Eski PC HDD Modülü (Sadece Segment 1 seçilirse)
 if [ "$SEGMENT_CHOICE" -eq 1 ]; then
     READ_AHEAD=$([ "$TYPE_CHOICE" -eq 1 ] && echo 2048 || echo 1024)
     for dev in /sys/block/sd*/queue/read_ahead_kb; do
@@ -145,13 +138,11 @@ if [ "$SEGMENT_CHOICE" -eq 1 ]; then
     done
 fi
 
-# Dokunmatik Ekran Modülü (Sadece Tür 3 seçilirse)
 if [ "$TYPE_CHOICE" -eq 3 ]; then
     install_pkg touchegg xserver-xorg-input-wacom xserver-xorg-input-libinput
     sudo systemctl enable --now touchegg 2>/dev/null || true
 fi
 
-# zRAM Sıkıştırma Motoru
 if ! grep -q "zram" /proc/swaps 2>/dev/null; then
     sudo modprobe zram num_devices=1 2>/dev/null || true
     if [ -f /sys/block/zram0/comp_algorithm ]; then
@@ -162,7 +153,6 @@ if ! grep -q "zram" /proc/swaps 2>/dev/null; then
     fi
 fi
 
-# 4GB Disk Önbellek (Swap) Dosyası
 CACHE_FILE="/speedyos_cache.bin"
 if [ ! -f "$CACHE_FILE" ]; then
     sudo dd if=/dev/zero of="$CACHE_FILE" bs=1M count=4096 status=progress
@@ -171,7 +161,6 @@ if [ ! -f "$CACHE_FILE" ]; then
 fi
 swapon --show | grep -q "$CACHE_FILE" || sudo swapon -p 10 "$CACHE_FILE" 2>/dev/null
 
-# İşlemci Performans Modu ve Disk Zamanlayıcı
 for gov in /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor; do
     [ -f "$gov" ] && echo "performance" | sudo tee "$gov" > /dev/null
 done
@@ -183,7 +172,10 @@ for sched in /sys/block/*/queue/scheduler; do
     fi
 done
 
-sudo sed -i 's/#DefaultTimeoutStopSec=90s/DefaultTimeoutStopSec=10s/' /etc/systemd/system.conf
+if [ -f /etc/systemd/system.conf ]; then
+    sudo sed -i 's/#DefaultTimeoutStopSec=90s/DefaultTimeoutStopSec=10s/' /etc/systemd/system.conf
+fi
+
 sudo sysctl --system > /dev/null 2>&1
 
 # 6. ARKA PLAN DONDURUCU MOTORU

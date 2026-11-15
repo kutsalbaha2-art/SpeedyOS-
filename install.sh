@@ -1,13 +1,13 @@
 #!/bin/bash
 # =======================================================
-# SpeedyOS - Evrensel Linux Arayüzü (ELOY Çekirdeği)
+# SpeedyOS - Evrensel Linux Arayüzü (Tam Kabuk Sürümü)
 # =======================================================
 
 echo "⚡ SpeedyOS - Evrensel Linux Arayüzü Başlatılıyor..."
 
 # 1. DONANIM SEGMENTİ VE FORM FAKTÖRÜ SİHİRBAZI
 echo -e "\n🖥️  Bilgisayarınızın Donanım Segmentini Seçin:"
-echo "1) Eski / Düşük Donanımlı Bilgisayar (RAM < 4GB / HDD)"
+echo "1) Eski / Düşük Donanımlı Bilgisayar (RAM 4GB alti / HDD)"
 echo "2) Orta Segment Bilgisayar"
 echo "3) Oyuncu / Yüksek Performanslı PC (Örn: Excalibur G870)"
 read -p "Seçiminiz (1/2/3): " SEGMENT_CHOICE
@@ -66,25 +66,104 @@ elif echo "$GPU_INFO" | grep -iq "AMD"; then
     [ "$DISTRO" = "Fedora" ] && install_pkg mesa-vulkan-drivers
 fi
 
-# 4. YÜZEN GÖREV ÇUBUĞU VE HIZLI ANİMASYONLAR (SİMGELERE DOKUNMAZ)
-echo "🎨 Yüzen Görev Çubuğu ve Hızlı Animasyonlar Aktif Ediliyor..."
+# 4. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU VE TEMASI
+echo "🎨 SpeedyOS Özel Arayüz Kabuğu İnşa Ediliyor..."
+
+# Özel SpeedyOS Vektörel Duvar Kağıdı Oluştur
+mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes"
+WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
+cat << 'EOF' > "$WALLPAPER_PATH"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#1a1118"/>
+      <stop offset="55%" stop-color="#0d0e14"/>
+      <stop offset="100%" stop-color="#06070a"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e11d48" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#facc15" stop-opacity="0.25"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="960" cy="520" r="340" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <circle cx="960" cy="520" r="460" fill="none" stroke="#e11d48" stroke-opacity="0.15" stroke-width="1.5"/>
+  <path d="M0 820 Q 480 680 960 790 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#accent)"/>
+</svg>
+EOF
+
+# Özel SpeedyOS Obsidyen-Kızıl-Altın Renk Şeması
+cat << 'EOF' > "$HOME/.local/share/color-schemes/SpeedyOS.colors"
+[General]
+ColorScheme=SpeedyOS
+Name=SpeedyOS Obsidian
+
+[Colors:Window]
+BackgroundNormal=13,14,20
+BackgroundAlternate=20,22,31
+ForegroundNormal=243,244,246
+ForegroundInactive=156,163,175
+DecorationFocus=225,29,72
+DecorationHover=250,204,21
+
+[Colors:View]
+BackgroundNormal=10,11,16
+BackgroundAlternate=17,19,27
+ForegroundNormal=243,244,246
+
+[Colors:Selection]
+BackgroundNormal=225,29,72
+ForegroundNormal=255,255,255
+
+[WM]
+activeBackground=13,14,20
+activeForeground=250,204,21
+inactiveBackground=10,11,16
+inactiveForeground=107,114,128
+EOF
+
 if pgrep -x "plasmashell" > /dev/null; then
-    echo "💠 KDE Plasma Algılandı: Yüzen Panel ve Hızlı Animasyonlar Uygulanıyor..."
+    echo "💠 KDE Plasma Algılandı: Çift Barlı SpeedyOS Kabuğu Kuruluyor..."
     KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
     if [ -n "$KWRITE" ]; then
         $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
+        $KWRITE --file kwinrc --group Plugins --key blurEnabled true
+        $KWRITE --file kwinrc --group Plugins --key slideEnabled true
+        $KWRITE --file kwinrc --group Effect-blur --key BlurStrength "$BLUR_STRENGTH"
     fi
-    APPLET_RC="$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-    if [ -f "$APPLET_RC" ]; then
-        sed -i '/^floating=/d' "$APPLET_RC"
-        sed -i 's/^plugin=org.kde.panel/plugin=org.kde.panel\nfloating=1/' "$APPLET_RC"
-    fi
-    # KWin animasyonlarını ve Plasma kabuğunu anında yenile
-    qdbus6 org.kde.KWin /KWin reconfigure 2>/dev/null || qdbus org.kde.KWin /KWin reconfigure 2>/dev/null || true
-    systemctl --user restart plasma-plasmashell.service 2>/dev/null || (nohup plasmashell --replace >/dev/null 2>&1 &)
+
+    plasma-apply-colorscheme SpeedyOS 2>/dev/null || true
+    plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
+
+    # Eski paneli kaldırıp Üst Durum Çubuğu + Alt Yüzen Dock oluştur
+    PLASMA_SCRIPT='
+    panels().forEach(p => p.remove());
+
+    var topBar = new Panel("org.kde.panel");
+    topBar.location = "top";
+    topBar.height = 28;
+    topBar.floating = true;
+    topBar.addWidget("org.kde.plasma.kicker");
+    topBar.addWidget("org.kde.plasma.appmenu");
+    topBar.addWidget("org.kde.plasma.panelspacer");
+    topBar.addWidget("org.kde.plasma.digitalclock");
+    topBar.addWidget("org.kde.plasma.panelspacer");
+    topBar.addWidget("org.kde.plasma.systemtray");
+
+    var dock = new Panel("org.kde.panel");
+    dock.location = "bottom";
+    dock.height = 54;
+    dock.floating = true;
+    dock.alignment = "center";
+    try { dock.lengthMode = "fit"; } catch(e) {}
+    dock.addWidget("org.kde.plasma.icontasks");
+    dock.addWidget("org.kde.plasma.trash");
+    '
+    busctl --user call org.kde.plasmashell /PlasmaShell org.kde.PlasmaShell evaluateScript s "$PLASMA_SCRIPT" >/dev/null 2>&1 || true
+    busctl --user call org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
 else
-    echo "🪟 Hafif Masaüstü Algılandı: Plank Yüzen Çubuk ve Picom Başlatılıyor..."
-    install_pkg picom plank
+    echo "🪟 Hafif Masaüstü Algılandı: Yüzen Dock ve Cam Efektleri Kuruluyor..."
+    install_pkg picom plank feh
     mkdir -p ~/.config/picom/ ~/.config/autostart/
     cat << EOF > ~/.config/picom/picom.conf
 backend = "glx";
@@ -96,7 +175,7 @@ fade-delta = 3;
 blur-background = true;
 blur-method = "dual_kawase";
 blur-strength = ${BLUR_STRENGTH};
-corner-radius = 12;
+corner-radius = 14;
 rounded-corners-exclude = [ "window_type = 'desktop'" ];
 EOF
     cat << 'EOF' > ~/.config/autostart/speedyos-dock.desktop
@@ -106,8 +185,9 @@ Exec=plank
 Hidden=false
 NoDisplay=false
 X-GNOME-Autostart-enabled=true
-Name=SpeedyOS Yüzen Görev Çubuğu
+Name=SpeedyOS Yüzen Dock
 EOF
+    feh --bg-fill "$WALLPAPER_PATH" 2>/dev/null || true
     pkill -x picom 2>/dev/null || true
     pkill -x plank 2>/dev/null || true
     nohup picom -b >/dev/null 2>&1 &
@@ -202,4 +282,4 @@ speedyos_freezer_engine() {
 }
 
 speedyos_freezer_engine & >/dev/null 2>&1
-echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Başarıyla Kuruldu!"
+echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Tam Kabuk Modunda Kuruldu!"

@@ -53,9 +53,9 @@ install_pkg() {
 # 3. GÜÇ YÖNETİMİ, SÜRÜCÜLER VE ARAYÜZ BAĞIMLILIKLARI
 echo "🔋 Güç Yönetimi, GPU ve Akıllı Panel Araçları Yükleniyor..."
 install_pkg auto-cpufreq xdotool xorg-xprop x11-utils python3 brightnessctl
-[ "$DISTRO" = "Debian/Ubuntu" ] && install_pkg python3-tk pulseaudio-utils
-[ "$DISTRO" = "Arch" ] && install_pkg tk libpulse
-[ "$DISTRO" = "Fedora" ] && install_pkg python3-tkinter pulseaudio-utils
+[ "$DISTRO" = "Debian/Ubuntu" ] && install_pkg python3-tk python3-dbus python3-gi pulseaudio-utils
+[ "$DISTRO" = "Arch" ] && install_pkg tk python-dbus python-gobject libpulse
+[ "$DISTRO" = "Fedora" ] && install_pkg python3-tkinter python3-dbus python3-gobject pulseaudio-utils
 sudo auto-cpufreq --install 2>/dev/null || true
 
 GPU_INFO=$(lspci 2>/dev/null | grep -iE 'vga|3d')
@@ -79,7 +79,7 @@ EOF
 sudo udevadm control --reload-rules 2>/dev/null || true
 
 # 4. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU VE KWIN 6 ANİMASYON MOTORU
-echo "🎨 SpeedyOS Özel Arayüz Kabuğu ve 3D/Lamba Animasyonları Kuruluyor..."
+echo "🎨 SpeedyOS Özel Arayüz Kabuğu, Çift Panel ve Animasyonlar Kuruluyor..."
 
 mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes"
 WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
@@ -99,4 +99,4 @@ cat << 'EOF' > "$WALLPAPER_PATH"
   <rect width="1920" height="1080" fill="url(#bg)"/>
   <circle cx="960" cy="520" r="340" fill="none" stroke="url(#accent)" stroke-width="3"/>
   <circle cx="960" cy="520" r="460" fill="none" stroke="#e11d48" stroke-opacity="0.15" stroke-width="1.5"/>
-  <path d="M0 820 Q 480 680 960 790 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#accent)"/>
+  <path d="M0 820 Q 480 680 960 790 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#

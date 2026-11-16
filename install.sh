@@ -79,7 +79,7 @@ EOF
 sudo udevadm control --reload-rules 2>/dev/null || true
 
 # 4. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU VE KWIN 6 ANİMASYON MOTORU
-echo "🎨 SpeedyOS Özel Arayüz Kabuğu, Çift Panel ve Animasyonlar Kuruluyor..."
+echo "🎨 SpeedyOS Özel Arayüz Kabuğu, Çift Panel ve Kısayollar Kuruluyor..."
 
 mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes"
 WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
@@ -132,7 +132,6 @@ inactiveBackground=10,11,16
 inactiveForeground=107,114,128
 EOF
 
-# Ekran çözünürlüğünü Wayland/X11 bağımsız tespit et
 read SCREEN_W SCREEN_H < <(python3 -c "import tkinter as tk; r=tk.Tk(); print(r.winfo_screenwidth(), r.winfo_screenheight()); r.destroy()" 2>/dev/null || echo "1920 1080")
 [ -z "$SCREEN_W" ] && SCREEN_W=1920
 [ -z "$SCREEN_H" ] && SCREEN_H=1080
@@ -140,7 +139,7 @@ RIGHT_X=$((SCREEN_W - 294))
 HUD_Y=$(((SCREEN_H - 340) / 2))
 
 if pgrep -x "plasmashell" > /dev/null; then
-    echo "💠 KDE Plasma 6 Algılandı: Çift Bar, Sihirli Lamba ve Kenar Panelleri İşleniyor..."
+    echo "💠 KDE Plasma 6 Algılandı: Çift Bar, Animasyonlar ve Ctrl+Alt+Ok Kısayolları İşleniyor..."
     KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
     KPACK=$(command -v kpackagetool6 || command -v kpackagetool5)
 
@@ -149,7 +148,6 @@ if pgrep -x "plasmashell" > /dev/null; then
         $KWRITE --file klaunchrc --group FeedbackStyle --key TaskbarButton true
         $KWRITE --file klaunchrc --group FeedbackStyle --key BusyCursor true
 
-        # KWin Pencere Açılış, Kapanış ve Sihirli Lamba Animasyonları
         $KWRITE --file kwinrc --group Plugins --key blurEnabled "$BLUR_ENABLED"
         $KWRITE --file kwinrc --group Plugins --key squashEnabled false
         $KWRITE --file kwinrc --group Plugins --key scaleEnabled false
@@ -165,9 +163,12 @@ if pgrep -x "plasmashell" > /dev/null; then
         $KWRITE --file kwinrc --group Effect-glide --key OutRotationAngle 18
         $KWRITE --file kwinrc --group Effect-glide --key InDistance 120
         $KWRITE --file kwinrc --group Effect-glide --key OutDistance 120
+
+        # Global Kısayol Kayıtları (Ctrl+Alt+Sağ ve Ctrl+Alt+Sol)
+        $KWRITE --file kglobalshortcutsrc --group kwin --key "SpeedyOS_Right_Panel" "Ctrl+Alt+Right,none,SpeedyOS Sag Kontrol Paneli"
+        $KWRITE --file kglobalshortcutsrc --group kwin --key "SpeedyOS_Left_Panel" "Ctrl+Alt+Left,none,SpeedyOS Sol Sistem Monitoru"
     fi
 
-    # Wayland'de Sağ & Sol HUD Pencerelerini Ekran Kenarlarına Sabitleyen KWin Kuralları
     cat << EOF > "$HOME/.config/kwinrulesrc"
 [1]
 Description=SpeedyOS Sag Kontrol Merkezi
@@ -204,7 +205,7 @@ count=2
 rules=1,2
 EOF
 
-    # KWin Kenar ve Akıllı Dock Eklentisi
+    # KWin Global Klavye Kısayolu Eklentisi
     BRIDGE_DIR="$HOME/.local/share/kwin/scripts/speedyos-bridge"
     mkdir -p "$BRIDGE_DIR/contents/code"
     cat << 'EOF' > "$BRIDGE_DIR/metadata.json"
@@ -213,7 +214,7 @@ EOF
     "KPlugin": {
         "Id": "speedyos-bridge",
         "Name": "SpeedyOS Bridge",
-        "Description": "Akilli Dock ve Ekran Kenari Tetikleyici",
+        "Description": "SpeedyOS Klavye Kisayollari ve Panel Koprusu",
         "Version": "1.0"
     },
     "X-Plasma-API": "javascript",
@@ -222,13 +223,12 @@ EOF
 EOF
 
     cat << 'EOF' > "$BRIDGE_DIR/contents/code/main.js"
-// Ekran Kenarları: 2 = Sağ Kenar, 6 = Sol Kenar
-registerScreenEdge(2, function () {
-    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Show", "right");
+registerShortcut("SpeedyOS_Right_Panel", "SpeedyOS Sag Kontrol Paneli", "Ctrl+Alt+Right", function () {
+    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Toggle", "right");
 });
 
-registerScreenEdge(6, function () {
-    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Show", "left");
+registerShortcut("SpeedyOS_Left_Panel", "SpeedyOS Sol Sistem Monitoru", "Ctrl+Alt+Left", function () {
+    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Toggle", "left");
 });
 EOF
 
@@ -239,7 +239,6 @@ EOF
     plasma-apply-colorscheme SpeedyOS 2>/dev/null || true
     plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
 
-    # Plasma Kabuğunu Güvenle Durdurup Çift Panel (Üst Bar + Alt Yüzen Dock) Yapısını Yaz
     cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc.bak" 2>/dev/null || true
     cp "$HOME/.config/plasmashellrc" "$HOME/.config/plasmashellrc.bak" 2>/dev/null || true
 
@@ -334,7 +333,6 @@ EOF
     sleep 2
     plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
 
-    # KWin Efektlerini ve Köprü Betiğini Canlı Başlat
     for eff in squash scale wobblywindows; do
         busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects unloadEffect s "$eff" >/dev/null 2>&1 || true
     done
@@ -347,8 +345,8 @@ EOF
     busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting start >/dev/null 2>&1 || true
     busctl --user call org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
 else
-    echo "🪟 Hafif Masaüstü Algılandı: Yüzen Dock ve Cam Efektleri Kuruluyor..."
-    install_pkg picom plank feh
+    echo "🪟 Hafif Masaüstü Algılandı: Yüzen Dock, Cam Efektleri ve Kısayollar Kuruluyor..."
+    install_pkg picom plank feh xbindkeys
     mkdir -p ~/.config/picom/ ~/.config/autostart/
     cat << EOF > ~/.config/picom/picom.conf
 backend = "glx";
@@ -372,15 +370,24 @@ NoDisplay=false
 X-GNOME-Autostart-enabled=true
 Name=SpeedyOS Yüzen Dock
 EOF
+    cat << 'EOF' > ~/.xbindkeysrc
+"pgrep -f 'speedyos-hud.py right' && pkill -f 'speedyos-hud.py right' || python3 /usr/local/bin/speedyos-hud.py right"
+  Control+Alt + Right
+
+"pgrep -f 'speedyos-hud.py left' && pkill -f 'speedyos-hud.py left' || python3 /usr/local/bin/speedyos-hud.py left"
+  Control+Alt + Left
+EOF
     feh --bg-fill "$WALLPAPER_PATH" 2>/dev/null || true
     pkill -x picom 2>/dev/null || true
     pkill -x plank 2>/dev/null || true
+    pkill -x xbindkeys 2>/dev/null || true
     nohup picom -b >/dev/null 2>&1 &
     nohup plank >/dev/null 2>&1 &
+    nohup xbindkeys >/dev/null 2>&1 &
 fi
 
-# 5. SAĞ & SOL KENAR AKILLI PANELLERİ (SPEEDYOS EDGE HUD)
-echo "🎛️ Sağ Kenar Kontrol Merkezi & Sol Kenar Sistem Monitörü Oluşturuluyor..."
+# 5. SAĞ & SOL AKILLI PANELLERİ (SPEEDYOS EDGE HUD)
+echo "🎛️ Sağ Kontrol Merkezi & Sol Sistem Monitörü Oluşturuluyor..."
 cat << 'EOF' | sudo tee /usr/local/bin/speedyos-hud.py > /dev/null
 #!/usr/bin/env python3
 import sys, os, glob, shutil, subprocess
@@ -409,11 +416,20 @@ frame.pack(fill="both", expand=True, padx=2, pady=2)
 
 sw = root.winfo_screenwidth()
 sh = root.winfo_screenheight()
+hovered = {"active": False}
 
 def close_win(event=None):
-    root.destroy()
+    try:
+        root.destroy()
+    except Exception:
+        pass
+
+def on_enter(event=None):
+    hovered["active"] = True
 
 def check_leave(event=None):
+    if not hovered["active"]:
+        return
     try:
         px, py = root.winfo_pointerxy()
         wx, wy = root.winfo_rootx(), root.winfo_rooty()
@@ -423,8 +439,10 @@ def check_leave(event=None):
     except Exception:
         pass
 
-root.bind("<Leave>", lambda e: root.after(550, check_leave))
-root.after(15000, close_win)
+root.bind("<Escape>", close_win)
+root.bind("<Enter>", on_enter)
+root.bind("<Leave>", lambda e: root.after(600, check_leave))
+root.after(25000, close_win)
 
 header = tk.Frame(frame, bg=BG)
 header.pack(fill="x", pady=(0, 10))
@@ -720,7 +738,7 @@ esac
 EOF
 sudo chmod +x /usr/local/bin/speedysecure
 
-# 8. AKTİF D-BUS SERVİSİ VE ARKA PLAN DONDURUCU MOTORU
+# 8. AKTİF D-BUS SERVİSİ (AÇ/KAPA DESTEKLİ) VE ARKA PLAN MOTORU
 cat << 'EOF' | sudo tee /usr/local/bin/speedyos-dbus.py > /dev/null
 #!/usr/bin/env python3
 import subprocess
@@ -735,11 +753,17 @@ class SpeedyHUDService(dbus.service.Object):
         super().__init__(bus_name, "/HUD")
 
     @dbus.service.method("org.speedyos.HUD", in_signature="s", out_signature="")
-    def Show(self, side):
+    def Toggle(self, side):
         check = subprocess.run(["pgrep", "-f", f"speedyos-hud.py {side}"], stdout=subprocess.DEVNULL)
-        if check.returncode != 0:
+        if check.returncode == 0:
+            subprocess.run(["pkill", "-f", f"speedyos-hud.py {side}"], stdout=subprocess.DEVNULL)
+        else:
             subprocess.Popen(["python3", "/usr/local/bin/speedyos-hud.py", side],
                              stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+    @dbus.service.method("org.speedyos.HUD", in_signature="s", out_signature="")
+    def Show(self, side):
+        self.Toggle(side)
 
 DBusGMainLoop(set_as_default=True)
 session_bus = dbus.SessionBus()
@@ -752,8 +776,6 @@ cat << 'EOF' | sudo tee /usr/local/bin/speedyos-daemon > /dev/null
 #!/bin/bash
 EXCLUDE_LIST="Xorg|Xwayland|systemd|dbus|pipewire|pulseaudio|wireplumber|bash|xdotool|xprop|plank|plasmashell|kwin|picom|python3|speedyos"
 IS_FROZEN=0
-SCREEN_W=$(xdpyinfo 2>/dev/null | awk '/dimensions:/ {print $2}' | cut -d'x' -f1)
-[ -z "$SCREEN_W" ] && SCREEN_W=1920
 
 pkill -f "speedyos-dbus.py" 2>/dev/null || true
 nohup python3 /usr/local/bin/speedyos-dbus.py >/dev/null 2>&1 &
@@ -777,18 +799,7 @@ while true; do
         IS_FROZEN=0
     fi
 
-    if ! pgrep -x "plasmashell" > /dev/null; then
-        eval $(xdotool getmouselocation --shell 2>/dev/null)
-        if [ -n "$X" ]; then
-            if [ "$X" -ge $((SCREEN_W - 2)) ]; then
-                pgrep -f "speedyos-hud.py right" >/dev/null || nohup python3 /usr/local/bin/speedyos-hud.py right >/dev/null 2>&1 &
-            elif [ "$X" -le 2 ]; then
-                pgrep -f "speedyos-hud.py left" >/dev/null || nohup python3 /usr/local/bin/speedyos-hud.py left >/dev/null 2>&1 &
-            fi
-        fi
-    fi
-
-    sleep 0.6
+    sleep 0.8
 done
 EOF
 sudo chmod +x /usr/local/bin/speedyos-daemon
@@ -807,4 +818,4 @@ EOF
 pkill -f "speedyos-daemon" 2>/dev/null || true
 nohup /usr/local/bin/speedyos-daemon >/dev/null 2>&1 &
 
-echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Başarıyla Kuruldu!"
+echo "🎉 SpeedyOS - Evrensel Linux Arayüzü (Ctrl+Alt+Ok Kısayollu) Başarıyla Kuruldu!"

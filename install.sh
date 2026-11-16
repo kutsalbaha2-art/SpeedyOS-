@@ -53,9 +53,9 @@ install_pkg() {
 # 3. GÜÇ YÖNETİMİ, SÜRÜCÜLER VE ARAYÜZ BAĞIMLILIKLARI
 echo "🔋 Güç Yönetimi, GPU ve Akıllı Panel Araçları Yükleniyor..."
 install_pkg auto-cpufreq xdotool xorg-xprop x11-utils python3 brightnessctl
-[ "$DISTRO" = "Debian/Ubuntu" ] && install_pkg python3-tk python3-dbus python3-gi pulseaudio-utils
-[ "$DISTRO" = "Arch" ] && install_pkg tk python-dbus python-gobject libpulse
-[ "$DISTRO" = "Fedora" ] && install_pkg python3-tkinter python3-dbus python3-gobject pulseaudio-utils
+[ "$DISTRO" = "Debian/Ubuntu" ] && install_pkg python3-tk pulseaudio-utils
+[ "$DISTRO" = "Arch" ] && install_pkg tk libpulse
+[ "$DISTRO" = "Fedora" ] && install_pkg python3-tkinter pulseaudio-utils
 sudo auto-cpufreq --install 2>/dev/null || true
 
 GPU_INFO=$(lspci 2>/dev/null | grep -iE 'vga|3d')
@@ -78,315 +78,7 @@ ACTION=="add", SUBSYSTEM=="backlight", RUN+="/bin/chmod a+rw /sys/class/backligh
 EOF
 sudo udevadm control --reload-rules 2>/dev/null || true
 
-# 4. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU VE KWIN 6 ANİMASYON MOTORU
-echo "🎨 SpeedyOS Özel Arayüz Kabuğu, Çift Panel ve Kısayollar Kuruluyor..."
-
-mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes"
-WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
-cat << 'EOF' > "$WALLPAPER_PATH"
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
-  <defs>
-    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
-      <stop offset="0%" stop-color="#1a1118"/>
-      <stop offset="55%" stop-color="#0d0e14"/>
-      <stop offset="100%" stop-color="#06070a"/>
-    </radialGradient>
-    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
-      <stop offset="0%" stop-color="#e11d48" stop-opacity="0.45"/>
-      <stop offset="100%" stop-color="#facc15" stop-opacity="0.25"/>
-    </linearGradient>
-  </defs>
-  <rect width="1920" height="1080" fill="url(#bg)"/>
-  <circle cx="960" cy="520" r="340" fill="none" stroke="url(#accent)" stroke-width="3"/>
-  <circle cx="960" cy="520" r="460" fill="none" stroke="#e11d48" stroke-opacity="0.15" stroke-width="1.5"/>
-  <path d="M0 820 Q 480 680 960 790 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#accent)"/>
-</svg>
-EOF
-
-cat << 'EOF' > "$HOME/.local/share/color-schemes/SpeedyOS.colors"
-[General]
-ColorScheme=SpeedyOS
-Name=SpeedyOS Obsidian
-
-[Colors:Window]
-BackgroundNormal=13,14,20
-BackgroundAlternate=20,22,31
-ForegroundNormal=243,244,246
-ForegroundInactive=156,163,175
-DecorationFocus=225,29,72
-DecorationHover=250,204,21
-
-[Colors:View]
-BackgroundNormal=10,11,16
-BackgroundAlternate=17,19,27
-ForegroundNormal=243,244,246
-
-[Colors:Selection]
-BackgroundNormal=225,29,72
-ForegroundNormal=255,255,255
-
-[WM]
-activeBackground=13,14,20
-activeForeground=250,204,21
-inactiveBackground=10,11,16
-inactiveForeground=107,114,128
-EOF
-
-read SCREEN_W SCREEN_H < <(python3 -c "import tkinter as tk; r=tk.Tk(); print(r.winfo_screenwidth(), r.winfo_screenheight()); r.destroy()" 2>/dev/null || echo "1920 1080")
-[ -z "$SCREEN_W" ] && SCREEN_W=1920
-[ -z "$SCREEN_H" ] && SCREEN_H=1080
-RIGHT_X=$((SCREEN_W - 294))
-HUD_Y=$(((SCREEN_H - 340) / 2))
-
-if pgrep -x "plasmashell" > /dev/null; then
-    echo "💠 KDE Plasma 6 Algılandı: Çift Bar, Animasyonlar ve Ctrl+Alt+Ok Kısayolları İşleniyor..."
-    KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
-    KPACK=$(command -v kpackagetool6 || command -v kpackagetool5)
-
-    if [ -n "$KWRITE" ]; then
-        $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
-        $KWRITE --file klaunchrc --group FeedbackStyle --key TaskbarButton true
-        $KWRITE --file klaunchrc --group FeedbackStyle --key BusyCursor true
-
-        $KWRITE --file kwinrc --group Plugins --key blurEnabled "$BLUR_ENABLED"
-        $KWRITE --file kwinrc --group Plugins --key squashEnabled false
-        $KWRITE --file kwinrc --group Plugins --key scaleEnabled false
-        $KWRITE --file kwinrc --group Plugins --key magiclampEnabled true
-        $KWRITE --file kwinrc --group Plugins --key glideEnabled true
-        $KWRITE --file kwinrc --group Plugins --key slidingpopupsEnabled true
-        $KWRITE --file kwinrc --group Plugins --key speedyos-bridgeEnabled true
-
-        $KWRITE --file kwinrc --group Effect-blur --key BlurStrength "$BLUR_STRENGTH"
-        $KWRITE --file kwinrc --group Effect-magiclamp --key AnimationDuration 360
-        $KWRITE --file kwinrc --group Effect-glide --key Duration 280
-        $KWRITE --file kwinrc --group Effect-glide --key InRotationAngle 18
-        $KWRITE --file kwinrc --group Effect-glide --key OutRotationAngle 18
-        $KWRITE --file kwinrc --group Effect-glide --key InDistance 120
-        $KWRITE --file kwinrc --group Effect-glide --key OutDistance 120
-
-        # Global Kısayol Kayıtları (Ctrl+Alt+Sağ ve Ctrl+Alt+Sol)
-        $KWRITE --file kglobalshortcutsrc --group kwin --key "SpeedyOS_Right_Panel" "Ctrl+Alt+Right,none,SpeedyOS Sag Kontrol Paneli"
-        $KWRITE --file kglobalshortcutsrc --group kwin --key "SpeedyOS_Left_Panel" "Ctrl+Alt+Left,none,SpeedyOS Sol Sistem Monitoru"
-    fi
-
-    cat << EOF > "$HOME/.config/kwinrulesrc"
-[1]
-Description=SpeedyOS Sag Kontrol Merkezi
-above=true
-aboverule=2
-noborder=true
-noborderrule=2
-position=${RIGHT_X},${HUD_Y}
-positionrule=2
-skippager=true
-skippagerrule=2
-skiptaskbar=true
-skiptaskbarrule=2
-title=SpeedyOS_HUD_Right
-titlematch=1
-
-[2]
-Description=SpeedyOS Sol Sistem Monitoru
-above=true
-aboverule=2
-noborder=true
-noborderrule=2
-position=4,${HUD_Y}
-positionrule=2
-skippager=true
-skippagerrule=2
-skiptaskbar=true
-skiptaskbarrule=2
-title=SpeedyOS_HUD_Left
-titlematch=1
-
-[General]
-count=2
-rules=1,2
-EOF
-
-    # KWin Global Klavye Kısayolu Eklentisi
-    BRIDGE_DIR="$HOME/.local/share/kwin/scripts/speedyos-bridge"
-    mkdir -p "$BRIDGE_DIR/contents/code"
-    cat << 'EOF' > "$BRIDGE_DIR/metadata.json"
-{
-    "KPackageStructure": "KWin/Script",
-    "KPlugin": {
-        "Id": "speedyos-bridge",
-        "Name": "SpeedyOS Bridge",
-        "Description": "SpeedyOS Klavye Kisayollari ve Panel Koprusu",
-        "Version": "1.0"
-    },
-    "X-Plasma-API": "javascript",
-    "X-Plasma-MainScript": "code/main.js"
-}
-EOF
-
-    cat << 'EOF' > "$BRIDGE_DIR/contents/code/main.js"
-registerShortcut("SpeedyOS_Right_Panel", "SpeedyOS Sag Kontrol Paneli", "Ctrl+Alt+Right", function () {
-    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Toggle", "right");
-});
-
-registerShortcut("SpeedyOS_Left_Panel", "SpeedyOS Sol Sistem Monitoru", "Ctrl+Alt+Left", function () {
-    callDBus("org.speedyos.HUD", "/HUD", "org.speedyos.HUD", "Toggle", "left");
-});
-EOF
-
-    if [ -n "$KPACK" ]; then
-        $KPACK -t KWin/Script -u "$BRIDGE_DIR" >/dev/null 2>&1 || $KPACK -t KWin/Script -i "$BRIDGE_DIR" >/dev/null 2>&1 || true
-    fi
-
-    plasma-apply-colorscheme SpeedyOS 2>/dev/null || true
-    plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
-
-    cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc.bak" 2>/dev/null || true
-    cp "$HOME/.config/plasmashellrc" "$HOME/.config/plasmashellrc.bak" 2>/dev/null || true
-
-    systemctl --user stop plasma-plasmashell.service 2>/dev/null || kquitapp6 plasmashell 2>/dev/null || killall plasmashell 2>/dev/null || true
-    sleep 1
-
-    cat << 'EOF' > "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
-[ActionPlugins][0]
-MidButton;NoModifier=org.kde.paste
-RightButton;NoModifier=org.kde.contextmenu
-
-[Containments][1]
-activityId=
-formfactor=0
-immutability=1
-lastScreen=0
-location=0
-plugin=org.kde.plasma.folder
-wallpaperplugin=org.kde.image
-
-[Containments][2]
-activityId=
-formfactor=2
-immutability=1
-lastScreen=0
-location=3
-plugin=org.kde.panel
-wallpaperplugin=org.kde.image
-
-[Containments][2][Applets][3]
-immutability=1
-plugin=org.kde.plasma.kickoff
-
-[Containments][2][Applets][4]
-immutability=1
-plugin=org.kde.plasma.appmenu
-
-[Containments][2][Applets][5]
-immutability=1
-plugin=org.kde.plasma.panelspacer
-
-[Containments][2][Applets][6]
-immutability=1
-plugin=org.kde.plasma.digitalclock
-
-[Containments][2][Applets][7]
-immutability=1
-plugin=org.kde.plasma.panelspacer
-
-[Containments][2][Applets][8]
-immutability=1
-plugin=org.kde.plasma.systemtray
-
-[Containments][2][General]
-AppletOrder=3;4;5;6;7;8
-
-[Containments][9]
-activityId=
-formfactor=2
-immutability=1
-lastScreen=0
-location=4
-plugin=org.kde.panel
-wallpaperplugin=org.kde.image
-
-[Containments][9][Applets][10]
-immutability=1
-plugin=org.kde.plasma.icontasks
-
-[Containments][9][Applets][11]
-immutability=1
-plugin=org.kde.plasma.trash
-
-[Containments][9][General]
-AppletOrder=10;11
-EOF
-
-    cat << 'EOF' > "$HOME/.config/plasmashellrc"
-[PlasmaViews][Panel 2]
-floating=1
-panelLengthMode=0
-thickness=32
-
-[PlasmaViews][Panel 9]
-alignment=132
-floating=1
-panelLengthMode=1
-thickness=56
-EOF
-
-    systemctl --user start plasma-plasmashell.service 2>/dev/null || (nohup plasmashell >/dev/null 2>&1 &)
-    sleep 2
-    plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
-
-    for eff in squash scale wobblywindows; do
-        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects unloadEffect s "$eff" >/dev/null 2>&1 || true
-    done
-    for eff in magiclamp glide slidingpopups; do
-        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects loadEffect s "$eff" >/dev/null 2>&1 || true
-        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects reconfigureEffect s "$eff" >/dev/null 2>&1 || true
-    done
-    busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting unloadScript s "speedyos-bridge" >/dev/null 2>&1 || true
-    busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting loadScript s "$BRIDGE_DIR/contents/code/main.js" >/dev/null 2>&1 || true
-    busctl --user call org.kde.KWin /Scripting org.kde.kwin.Scripting start >/dev/null 2>&1 || true
-    busctl --user call org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
-else
-    echo "🪟 Hafif Masaüstü Algılandı: Yüzen Dock, Cam Efektleri ve Kısayollar Kuruluyor..."
-    install_pkg picom plank feh xbindkeys
-    mkdir -p ~/.config/picom/ ~/.config/autostart/
-    cat << EOF > ~/.config/picom/picom.conf
-backend = "glx";
-vsync = true;
-fading = true;
-fade-in-step = 0.08;
-fade-out-step = 0.08;
-fade-delta = 3;
-blur-background = ${BLUR_ENABLED};
-blur-method = "dual_kawase";
-blur-strength = ${BLUR_STRENGTH};
-corner-radius = 14;
-rounded-corners-exclude = [ "window_type = 'desktop'" ];
-EOF
-    cat << 'EOF' > ~/.config/autostart/speedyos-dock.desktop
-[Desktop Entry]
-Type=Application
-Exec=plank
-Hidden=false
-NoDisplay=false
-X-GNOME-Autostart-enabled=true
-Name=SpeedyOS Yüzen Dock
-EOF
-    cat << 'EOF' > ~/.xbindkeysrc
-"pgrep -f 'speedyos-hud.py right' && pkill -f 'speedyos-hud.py right' || python3 /usr/local/bin/speedyos-hud.py right"
-  Control+Alt + Right
-
-"pgrep -f 'speedyos-hud.py left' && pkill -f 'speedyos-hud.py left' || python3 /usr/local/bin/speedyos-hud.py left"
-  Control+Alt + Left
-EOF
-    feh --bg-fill "$WALLPAPER_PATH" 2>/dev/null || true
-    pkill -x picom 2>/dev/null || true
-    pkill -x plank 2>/dev/null || true
-    pkill -x xbindkeys 2>/dev/null || true
-    nohup picom -b >/dev/null 2>&1 &
-    nohup plank >/dev/null 2>&1 &
-    nohup xbindkeys >/dev/null 2>&1 &
-fi
-
-# 5. SAĞ & SOL AKILLI PANELLERİ (SPEEDYOS EDGE HUD)
+# 4. SAĞ & SOL AKILLI PANELLERİ (SPEEDYOS EDGE HUD & DOĞRUDAN TETİKLEYİCİ)
 echo "🎛️ Sağ Kontrol Merkezi & Sol Sistem Monitörü Oluşturuluyor..."
 cat << 'EOF' | sudo tee /usr/local/bin/speedyos-hud.py > /dev/null
 #!/usr/bin/env python3
@@ -608,7 +300,314 @@ else:
 root.mainloop()
 EOF
 sudo chmod +x /usr/local/bin/speedyos-hud.py
-sudo ln -sf /usr/local/bin/speedyos-hud.py /usr/local/bin/speedyos-hud
+
+# Tek Tık / Tek Kısayol Aç-Kapa (Toggle) Komutu
+cat << 'EOF' | sudo tee /usr/local/bin/speedyos-hud > /dev/null
+#!/bin/bash
+SIDE="${1:-right}"
+if pgrep -f "speedyos-hud.py $SIDE" >/dev/null 2>&1; then
+    pkill -f "speedyos-hud.py $SIDE"
+else
+    nohup python3 /usr/local/bin/speedyos-hud.py "$SIDE" >/dev/null 2>&1 &
+fi
+EOF
+sudo chmod +x /usr/local/bin/speedyos-hud
+
+# 5. SPEEDYOS ÖZEL İŞLETİM SİSTEMİ KABUĞU, ANİMASYONLAR VE KISAYOLLAR
+echo "🎨 SpeedyOS Özel Arayüz Kabuğu, Çift Panel ve Kısayollar Kuruluyor..."
+
+mkdir -p "$HOME/.local/share/wallpapers" "$HOME/.local/share/color-schemes" "$HOME/.local/share/applications"
+WALLPAPER_PATH="$HOME/.local/share/wallpapers/speedyos-shell.svg"
+cat << 'EOF' > "$WALLPAPER_PATH"
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1920 1080">
+  <defs>
+    <radialGradient id="bg" cx="50%" cy="45%" r="75%">
+      <stop offset="0%" stop-color="#1a1118"/>
+      <stop offset="55%" stop-color="#0d0e14"/>
+      <stop offset="100%" stop-color="#06070a"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#e11d48" stop-opacity="0.45"/>
+      <stop offset="100%" stop-color="#facc15" stop-opacity="0.25"/>
+    </linearGradient>
+  </defs>
+  <rect width="1920" height="1080" fill="url(#bg)"/>
+  <circle cx="960" cy="520" r="340" fill="none" stroke="url(#accent)" stroke-width="3"/>
+  <circle cx="960" cy="520" r="460" fill="none" stroke="#e11d48" stroke-opacity="0.15" stroke-width="1.5"/>
+  <path d="M0 820 Q 480 680 960 790 T 1920 720 L 1920 1080 L 0 1080 Z" fill="url(#accent)"/>
+</svg>
+EOF
+
+cat << 'EOF' > "$HOME/.local/share/color-schemes/SpeedyOS.colors"
+[General]
+ColorScheme=SpeedyOS
+Name=SpeedyOS Obsidian
+
+[Colors:Window]
+BackgroundNormal=13,14,20
+BackgroundAlternate=20,22,31
+ForegroundNormal=243,244,246
+ForegroundInactive=156,163,175
+DecorationFocus=225,29,72
+DecorationHover=250,204,21
+
+[Colors:View]
+BackgroundNormal=10,11,16
+BackgroundAlternate=17,19,27
+ForegroundNormal=243,244,246
+
+[Colors:Selection]
+BackgroundNormal=225,29,72
+ForegroundNormal=255,255,255
+
+[WM]
+activeBackground=13,14,20
+activeForeground=250,204,21
+inactiveBackground=10,11,16
+inactiveForeground=107,114,128
+EOF
+
+read SCREEN_W SCREEN_H < <(python3 -c "import tkinter as tk; r=tk.Tk(); print(r.winfo_screenwidth(), r.winfo_screenheight()); r.destroy()" 2>/dev/null || echo "1920 1080")
+[ -z "$SCREEN_W" ] && SCREEN_W=1920
+[ -z "$SCREEN_H" ] && SCREEN_H=1080
+RIGHT_X=$((SCREEN_W - 294))
+HUD_Y=$(((SCREEN_H - 340) / 2))
+
+if pgrep -x "plasmashell" > /dev/null; then
+    echo "💠 KDE Plasma 6 Algılandı: Çift Bar, Animasyonlar ve Ctrl+Alt+Ok Servisleri Kuruluyor..."
+    KWRITE=$(command -v kwriteconfig6 || command -v kwriteconfig5)
+
+    # Resmi KDE Global Kısayol Uygulama Tanımları
+    cat << 'EOF' > "$HOME/.local/share/applications/speedyos-right.desktop"
+[Desktop Entry]
+Type=Application
+Name=SpeedyOS Sag Kontrol Paneli
+Exec=/usr/local/bin/speedyos-hud right
+NoDisplay=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+    cat << 'EOF' > "$HOME/.local/share/applications/speedyos-left.desktop"
+[Desktop Entry]
+Type=Application
+Name=SpeedyOS Sol Sistem Monitoru
+Exec=/usr/local/bin/speedyos-hud left
+NoDisplay=true
+X-KDE-GlobalAccel-CommandShortcut=true
+EOF
+
+    if [ -n "$KWRITE" ]; then
+        $KWRITE --file kdeglobals --group KDE --key AnimationDurationFactor "$ANIM_SPEED"
+        $KWRITE --file klaunchrc --group FeedbackStyle --key TaskbarButton true
+        $KWRITE --file klaunchrc --group FeedbackStyle --key BusyCursor true
+
+        $KWRITE --file kwinrc --group Plugins --key blurEnabled "$BLUR_ENABLED"
+        $KWRITE --file kwinrc --group Plugins --key squashEnabled false
+        $KWRITE --file kwinrc --group Plugins --key scaleEnabled false
+        $KWRITE --file kwinrc --group Plugins --key magiclampEnabled true
+        $KWRITE --file kwinrc --group Plugins --key glideEnabled true
+        $KWRITE --file kwinrc --group Plugins --key slidingpopupsEnabled true
+
+        $KWRITE --file kwinrc --group Effect-blur --key BlurStrength "$BLUR_STRENGTH"
+        $KWRITE --file kwinrc --group Effect-magiclamp --key AnimationDuration 360
+        $KWRITE --file kwinrc --group Effect-glide --key Duration 280
+        $KWRITE --file kwinrc --group Effect-glide --key InRotationAngle 18
+        $KWRITE --file kwinrc --group Effect-glide --key OutRotationAngle 18
+        $KWRITE --file kwinrc --group Effect-glide --key InDistance 120
+        $KWRITE --file kwinrc --group Effect-glide --key OutDistance 120
+
+        # KDE Plasma 6 Resmi Servis Kısayolları
+        $KWRITE --file kglobalshortcutsrc --group "services" --group "speedyos-right.desktop" --key "_launch" "Ctrl+Alt+Right"
+        $KWRITE --file kglobalshortcutsrc --group "services" --group "speedyos-left.desktop" --key "_launch" "Ctrl+Alt+Left"
+    fi
+
+    # Wayland'de Sağ & Sol HUD Pencerelerini Ekran Kenarlarına Sabitleyen KWin Kuralları
+    cat << EOF > "$HOME/.config/kwinrulesrc"
+[1]
+Description=SpeedyOS Sag Kontrol Merkezi
+above=true
+aboverule=2
+noborder=true
+noborderrule=2
+position=${RIGHT_X},${HUD_Y}
+positionrule=2
+skippager=true
+skippagerrule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=SpeedyOS_HUD_Right
+titlematch=1
+types=1
+
+[2]
+Description=SpeedyOS Sol Sistem Monitoru
+above=true
+aboverule=2
+noborder=true
+noborderrule=2
+position=4,${HUD_Y}
+positionrule=2
+skippager=true
+skippagerrule=2
+skiptaskbar=true
+skiptaskbarrule=2
+title=SpeedyOS_HUD_Left
+titlematch=1
+types=1
+
+[General]
+count=2
+rules=1,2
+EOF
+
+    kbuildsycoca6 2>/dev/null || kbuildsycoca5 2>/dev/null || true
+    systemctl --user restart plasma-kglobalaccel.service 2>/dev/null || true
+
+    plasma-apply-colorscheme SpeedyOS 2>/dev/null || true
+
+    # Plasma Kabuğunu Tamamen Durdurup Çift Panel Yapısını Güvenle Yaz
+    cp "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc" "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc.bak" 2>/dev/null || true
+    cp "$HOME/.config/plasmashellrc" "$HOME/.config/plasmashellrc.bak" 2>/dev/null || true
+
+    systemctl --user stop plasma-plasmashell.service 2>/dev/null || kquitapp6 plasmashell 2>/dev/null || killall plasmashell 2>/dev/null || true
+    for i in $(seq 1 20); do
+        pgrep -x "plasmashell" >/dev/null || break
+        sleep 0.25
+    done
+
+    cat << 'EOF' > "$HOME/.config/plasma-org.kde.plasma.desktop-appletsrc"
+[ActionPlugins][0]
+MidButton;NoModifier=org.kde.paste
+RightButton;NoModifier=org.kde.contextmenu
+
+[Containments][1]
+activityId=
+formfactor=0
+immutability=1
+lastScreen=0
+location=0
+plugin=org.kde.plasma.folder
+wallpaperplugin=org.kde.image
+
+[Containments][2]
+activityId=
+formfactor=2
+immutability=1
+lastScreen=0
+location=3
+plugin=org.kde.panel
+wallpaperplugin=org.kde.image
+
+[Containments][2][Applets][3]
+immutability=1
+plugin=org.kde.plasma.kickoff
+
+[Containments][2][Applets][4]
+immutability=1
+plugin=org.kde.plasma.panelspacer
+
+[Containments][2][Applets][5]
+immutability=1
+plugin=org.kde.plasma.digitalclock
+
+[Containments][2][Applets][6]
+immutability=1
+plugin=org.kde.plasma.panelspacer
+
+[Containments][2][Applets][7]
+immutability=1
+plugin=org.kde.plasma.systemtray
+
+[Containments][2][General]
+AppletOrder=3;4;5;6;7
+
+[Containments][8]
+activityId=
+formfactor=2
+immutability=1
+lastScreen=0
+location=4
+plugin=org.kde.panel
+wallpaperplugin=org.kde.image
+
+[Containments][8][Applets][9]
+immutability=1
+plugin=org.kde.plasma.icontasks
+
+[Containments][8][Applets][10]
+immutability=1
+plugin=org.kde.plasma.trash
+
+[Containments][8][General]
+AppletOrder=9;10
+EOF
+
+    cat << 'EOF' > "$HOME/.config/plasmashellrc"
+[PlasmaViews][Panel 2]
+floating=1
+panelLengthMode=0
+thickness=32
+
+[PlasmaViews][Panel 8]
+alignment=132
+floating=1
+panelLengthMode=1
+thickness=56
+EOF
+
+    systemctl --user start plasma-plasmashell.service 2>/dev/null || (nohup plasmashell >/dev/null 2>&1 &)
+    sleep 2
+    plasma-apply-wallpaperimage "$WALLPAPER_PATH" 2>/dev/null || true
+
+    for eff in squash scale wobblywindows; do
+        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects unloadEffect s "$eff" >/dev/null 2>&1 || true
+    done
+    for eff in magiclamp glide slidingpopups; do
+        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects loadEffect s "$eff" >/dev/null 2>&1 || true
+        busctl --user call org.kde.KWin /Effects org.kde.kwin.Effects reconfigureEffect s "$eff" >/dev/null 2>&1 || true
+    done
+    busctl --user call org.kde.KWin /KWin reconfigure >/dev/null 2>&1 || true
+else
+    echo "🪟 Hafif Masaüstü Algılandı: Yüzen Dock, Cam Efektleri ve Kısayollar Kuruluyor..."
+    install_pkg picom plank feh xbindkeys
+    mkdir -p ~/.config/picom/ ~/.config/autostart/
+    cat << EOF > ~/.config/picom/picom.conf
+backend = "glx";
+vsync = true;
+fading = true;
+fade-in-step = 0.08;
+fade-out-step = 0.08;
+fade-delta = 3;
+blur-background = ${BLUR_ENABLED};
+blur-method = "dual_kawase";
+blur-strength = ${BLUR_STRENGTH};
+corner-radius = 14;
+rounded-corners-exclude = [ "window_type = 'desktop'" ];
+EOF
+    cat << 'EOF' > ~/.config/autostart/speedyos-dock.desktop
+[Desktop Entry]
+Type=Application
+Exec=plank
+Hidden=false
+NoDisplay=false
+X-GNOME-Autostart-enabled=true
+Name=SpeedyOS Yüzen Dock
+EOF
+    cat << 'EOF' > ~/.xbindkeysrc
+"/usr/local/bin/speedyos-hud right"
+  Control+Alt + Right
+
+"/usr/local/bin/speedyos-hud left"
+  Control+Alt + Left
+EOF
+    feh --bg-fill "$WALLPAPER_PATH" 2>/dev/null || true
+    pkill -x picom 2>/dev/null || true
+    pkill -x plank 2>/dev/null || true
+    pkill -x xbindkeys 2>/dev/null || true
+    nohup picom -b >/dev/null 2>&1 &
+    nohup plank >/dev/null 2>&1 &
+    nohup xbindkeys >/dev/null 2>&1 &
+fi
 
 # 6. RAM, AĞ (TCP BBR), zRAM, KALICI HDD VE DISK ÖNBELLEK MODÜLÜ
 echo "⚡ Çekirdek, zRAM, Kalıcı HDD ve Ağ Hızlandırma Katmanı Uygulanıyor..."
@@ -738,47 +737,11 @@ esac
 EOF
 sudo chmod +x /usr/local/bin/speedysecure
 
-# 8. AKTİF D-BUS SERVİSİ (AÇ/KAPA DESTEKLİ) VE ARKA PLAN MOTORU
-cat << 'EOF' | sudo tee /usr/local/bin/speedyos-dbus.py > /dev/null
-#!/usr/bin/env python3
-import subprocess
-import dbus
-import dbus.service
-from dbus.mainloop.glib import DBusGMainLoop
-from gi.repository import GLib
-
-class SpeedyHUDService(dbus.service.Object):
-    def __init__(self, bus):
-        bus_name = dbus.service.BusName("org.speedyos.HUD", bus=bus)
-        super().__init__(bus_name, "/HUD")
-
-    @dbus.service.method("org.speedyos.HUD", in_signature="s", out_signature="")
-    def Toggle(self, side):
-        check = subprocess.run(["pgrep", "-f", f"speedyos-hud.py {side}"], stdout=subprocess.DEVNULL)
-        if check.returncode == 0:
-            subprocess.run(["pkill", "-f", f"speedyos-hud.py {side}"], stdout=subprocess.DEVNULL)
-        else:
-            subprocess.Popen(["python3", "/usr/local/bin/speedyos-hud.py", side],
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-
-    @dbus.service.method("org.speedyos.HUD", in_signature="s", out_signature="")
-    def Show(self, side):
-        self.Toggle(side)
-
-DBusGMainLoop(set_as_default=True)
-session_bus = dbus.SessionBus()
-service = SpeedyHUDService(session_bus)
-GLib.MainLoop().run()
-EOF
-sudo chmod +x /usr/local/bin/speedyos-dbus.py
-
+# 8. ARKA PLAN OYUN DONDURUCU MOTORU
 cat << 'EOF' | sudo tee /usr/local/bin/speedyos-daemon > /dev/null
 #!/bin/bash
 EXCLUDE_LIST="Xorg|Xwayland|systemd|dbus|pipewire|pulseaudio|wireplumber|bash|xdotool|xprop|plank|plasmashell|kwin|picom|python3|speedyos"
 IS_FROZEN=0
-
-pkill -f "speedyos-dbus.py" 2>/dev/null || true
-nohup python3 /usr/local/bin/speedyos-dbus.py >/dev/null 2>&1 &
 
 while true; do
     ACTIVE_WIN=$(xdotool getactivewindow 2>/dev/null)
@@ -799,7 +762,7 @@ while true; do
         IS_FROZEN=0
     fi
 
-    sleep 0.8
+    sleep 1
 done
 EOF
 sudo chmod +x /usr/local/bin/speedyos-daemon
@@ -815,7 +778,8 @@ X-GNOME-Autostart-enabled=true
 Name=SpeedyOS Arka Plan Motoru
 EOF
 
+pkill -f "speedyos-dbus.py" 2>/dev/null || true
 pkill -f "speedyos-daemon" 2>/dev/null || true
 nohup /usr/local/bin/speedyos-daemon >/dev/null 2>&1 &
 
-echo "🎉 SpeedyOS - Evrensel Linux Arayüzü (Ctrl+Alt+Ok Kısayollu) Başarıyla Kuruldu!"
+echo "🎉 SpeedyOS - Evrensel Linux Arayüzü Başarıyla Kuruldu!"
